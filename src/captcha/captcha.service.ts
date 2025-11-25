@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Page } from 'puppeteer';
 
-interface CaptchaRequest {
+export interface CaptchaRequest {
   id: string;
   accountId: number;
   image: string; // base64

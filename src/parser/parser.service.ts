@@ -3,7 +3,7 @@ import { Page } from 'puppeteer';
 import { BrowserService } from '../browser/browser.service';
 import { CaptchaService } from '../captcha/captcha.service';
 
-interface AvitoAccount {
+export interface AvitoAccount {
   id: number;
   login: string;
   password: string;
@@ -15,7 +15,7 @@ interface AvitoAccount {
   proxyPassword?: string;
 }
 
-interface AvitoChat {
+export interface AvitoChat {
   id: string;
   userId: string;
   userName: string;
@@ -27,7 +27,7 @@ interface AvitoChat {
   itemId?: string;
 }
 
-interface AvitoMessage {
+export interface AvitoMessage {
   id: string;
   chatId: string;
   content: string;
