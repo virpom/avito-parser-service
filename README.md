@@ -2,118 +2,260 @@
 
 Сервис для парсинга Avito через браузерную автоматизацию (Puppeteer).
 
-## Функционал
+## Возможности
 
-- ✅ Авторизация на Avito через логин/пароль
-- ✅ Сохранение cookies для быстрой авторизации
-- ✅ Парсинг списка чатов
-- ✅ Парсинг сообщений из чата
-- ✅ Отправка сообщений
-- ✅ Поддержка прокси (HTTP/HTTPS/SOCKS4/SOCKS5)
-- ✅ **Обход капчи через операторов CRM** (бесплатно!)
-- ✅ Эмуляция поведения человека
+- ✅ Парсинг чатов Avito без API ключей
+- ✅ Отправка сообщений через браузер
+- ✅ Обход капчи через операторов (ручное решение)
+- ✅ Поддержка прокси для каждого аккаунта
+- ✅ Автоматическое обновление cookies
+- ✅ **Удаленная авторизация через CDP WebSocket** - открывает браузер в админке для ввода SMS
+
+## Архитектура
+
+```
+┌─────────────────┐
+│  Admin Panel    │ ← Открывает браузер для авторизации
+└────────┬────────┘
+         │ WebSocket (CDP)
+         ↓
+┌─────────────────┐
+│ Parser Service  │ ← Puppeteer + Stealth
+│  (Kubernetes)   │
+└────────┬────────┘
+         │
+         ↓
+┌─────────────────┐
+│   Avito.ru      │
+└─────────────────┘
+```
 
 ## API Endpoints
 
-### POST /api/v1/parser/login
-Авторизация на Avito
+### Browser Gateway (CDP)
 
-**Body:**
+#### POST `/api/v1/browser/start`
+Запустить браузер для ручной авторизации
+
+**Request:**
 ```json
 {
-  "account": {
-    "id": 1,
-    "login": "79001234567",
-    "password": "password",
-    "proxyHost": "proxy.example.com",
-    "proxyPort": 8080,
-    "proxyType": "http",
-    "proxyLogin": "user",
-    "proxyPassword": "pass"
+  "accountId": 123,
+  "proxyConfig": {
+    "protocol": "http",
+    "host": "1.2.3.4",
+    "port": 8080,
+    "username": "user",
+    "password": "pass"
   }
 }
 ```
 
-### POST /api/v1/parser/chats
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "wsEndpoint": "ws://127.0.0.1:xxxxx/devtools/browser/xxx",
+    "publicWsUrl": "wss://api.lead-schem.ru/api/v1/browser/ws/xxx"
+  }
+}
+```
+
+#### GET `/api/v1/browser/:accountId/cookies`
+Получить cookies из браузера после авторизации
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "cookies": "[{\"name\":\"...\",\"value\":\"...\"}]"
+  }
+}
+```
+
+#### GET `/api/v1/browser/:accountId/status`
+Проверить статус авторизации
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "isAuthorized": true,
+    "hasSession": true
+  }
+}
+```
+
+#### DELETE `/api/v1/browser/:accountId`
+Закрыть браузер
+
+### Parser API
+
+#### POST `/api/v1/parser/login`
+Авторизация в Avito
+
+**Request:**
+```json
+{
+  "login": "79001234567",
+  "password": "encrypted_password",
+  "cookies": "[{...}]",
+  "proxy": {
+    "protocol": "http",
+    "host": "1.2.3.4",
+    "port": 8080,
+    "username": "user",
+    "password": "pass"
+  }
+}
+```
+
+#### POST `/api/v1/parser/chats`
 Получить список чатов
 
-**Body:**
+**Request:**
 ```json
 {
-  "account": {
-    "id": 1,
-    "cookies": "...",
-    "proxyHost": "...",
-    ...
-  }
+  "cookies": "[{...}]",
+  "proxy": {...}
 }
 ```
 
-### POST /api/v1/parser/messages
-Получить сообщения из чата
-
-**Body:**
+**Response:**
 ```json
 {
-  "account": {...},
-  "chatId": "123456"
+  "success": true,
+  "data": [
+    {
+      "id": "chat_123",
+      "title": "iPhone 13",
+      "lastMessage": "Здравствуйте!",
+      "unreadCount": 2
+    }
+  ],
+  "cookies": "[{...}]"
 }
 ```
 
-### POST /api/v1/parser/send
+#### POST `/api/v1/parser/messages`
+Получить сообщения чата
+
+**Request:**
+```json
+{
+  "chatId": "chat_123",
+  "cookies": "[{...}]",
+  "proxy": {...}
+}
+```
+
+#### POST `/api/v1/parser/send`
 Отправить сообщение
 
-**Body:**
+**Request:**
 ```json
 {
-  "account": {...},
-  "chatId": "123456",
-  "message": "Здравствуйте!"
+  "chatId": "chat_123",
+  "message": "Здравствуйте!",
+  "cookies": "[{...}]",
+  "proxy": {...}
 }
 ```
 
-### GET /api/v1/captcha/pending
-Получить список ожидающих капчи (для операторов)
+### Captcha API
 
-### POST /api/v1/captcha/submit
+#### GET `/api/v1/captcha/pending`
+Получить список ожидающих капч
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "captcha_123",
+      "imageUrl": "data:image/png;base64,...",
+      "createdAt": "2025-11-25T12:00:00Z"
+    }
+  ]
+}
+```
+
+#### POST `/api/v1/captcha/:id/solve`
 Отправить решение капчи
 
-**Body:**
+**Request:**
 ```json
 {
-  "captchaId": "captcha_1_1234567890",
-  "answer": "abc123"
+  "solution": "abc123"
 }
 ```
 
-## Environment Variables
+## Переменные окружения
 
 ```env
 PORT=5011
 NODE_ENV=production
 PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+PUBLIC_HOST=api.lead-schem.ru
 ```
 
-## Как работает решение капчи
+## Deployment
 
-1. **Парсер встречает капчу** → делает скриншот и отправляет в очередь
-2. **Оператор в CRM видит модалку** с изображением капчи
-3. **Оператор вводит ответ** → отправляется в парсер
-4. **Парсер продолжает** работу
-
-**Преимущества:**
-- ✅ Бесплатно (не нужен 2captcha)
-- ✅ Надежнее (человек лучше распознает)
-- ✅ Быстрее (оператор всегда онлайн)
-
-## Docker
-
+### Docker Build
 ```bash
-docker build -t avito-parser-service .
-docker run -p 5011:5011 avito-parser-service
+docker build -t jes11sy/avito-parser-service:latest .
+docker push jes11sy/avito-parser-service:latest
 ```
 
-## Kubernetes
+### Kubernetes
+```bash
+kubectl apply -f k8s/secrets/avito-parser-secrets.yaml
+kubectl apply -f k8s/deployments/avito-parser-service.yaml
+kubectl apply -f k8s/ingress/backend-ingress.yaml
+```
 
-См. файлы в `/k8s/deployments/`
+### GitHub Actions
+CI/CD настроен автоматически:
+- Push в `main`/`master` → автоматический build и deploy
+- Требуется секрет: `DOCKERHUB_TOKEN`
 
+## Как работает авторизация через браузер
+
+1. **Админ** в админке нажимает "Добавить аккаунт Avito" → ставит галку "Использовать парсер"
+2. **Фронт** создает аккаунт и вызывает `POST /api/v1/browser/start`
+3. **Парсер** запускает Puppeteer браузер в Kubernetes
+4. **Фронт** открывает модальное окно с инструкцией "Откройте Avito в новой вкладке"
+5. **Админ** открывает `https://www.avito.ru/profile/login` → вводит логин/пароль/SMS
+6. **Парсер** каждые 2 секунды проверяет URL страницы (если не `/login` → авторизован)
+7. **Фронт** получает уведомление "Авторизован!" → вызывает `GET /api/v1/browser/:id/cookies`
+8. **Парсер** возвращает cookies → **Фронт** сохраняет их в базу
+9. **Парсер** закрывает браузер `DELETE /api/v1/browser/:id`
+
+**Готово!** Cookies сохранены, SMS нужна только один раз.
+
+## Troubleshooting
+
+### Браузер не запускается
+```bash
+# Проверить логи
+kubectl logs -f deployment/avito-parser-service -n backend
+
+# Проверить ресурсы
+kubectl describe pod <pod-name> -n backend
+```
+
+### WebSocket не подключается
+- Проверить Ingress: `nginx.ingress.kubernetes.io/websocket-services`
+- Проверить CORS в `main.ts`
+- Проверить firewall/SSL
+
+### Капча не отображается
+- Проверить `/api/v1/captcha/pending` endpoint
+- Проверить `CaptchaModal` в `frontend callcentre`
+
+## License
+MIT

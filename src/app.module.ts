@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ParserModule } from './parser/parser.module';
 import { BrowserModule } from './browser/browser.module';
 import { CaptchaModule } from './captcha/captcha.module';
+import { BrowserGatewayModule } from './browser-gateway/browser-gateway.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { CaptchaModule } from './captcha/captcha.module';
     BrowserModule,
     CaptchaModule,
     ParserModule,
+    BrowserGatewayModule,
   ],
 })
 export class AppModule {}
