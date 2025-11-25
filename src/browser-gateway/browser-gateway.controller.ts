@@ -105,20 +105,13 @@ export class BrowserGatewayController {
    * Конвертировать внутренний WebSocket URL в публичный
    */
   private convertToPublicWsUrl(wsEndpoint: string): string {
-    // wsEndpoint выглядит как: ws://127.0.0.1:xxxxx/devtools/browser/xxx
-    // Нужно заменить на публичный URL через Ingress
-    
-    // Извлекаем ID браузера из URL
-    const match = wsEndpoint.match(/\/devtools\/browser\/([^\/]+)/);
-    const browserId = match ? match[1] : '';
-    
-    // Формируем публичный URL
+    // Для noVNC возвращаем URL к noVNC веб-клиенту
     const publicHost = process.env.PUBLIC_HOST || 'api.lead-schem.ru';
-    const publicWsUrl = `wss://${publicHost}/api/v1/browser/ws/${browserId}`;
+    const vncUrl = `https://${publicHost}/api/v1/browser/vnc`;
     
-    this.logger.log(`Converted ${wsEndpoint} to ${publicWsUrl}`);
+    this.logger.log(`VNC URL: ${vncUrl}`);
     
-    return publicWsUrl;
+    return vncUrl;
   }
 }
 

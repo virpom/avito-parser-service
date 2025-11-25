@@ -33,12 +33,19 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
+  // Serve noVNC static files
+  app.useStaticAssets({
+    root: '/opt/novnc',
+    prefix: '/novnc/',
+  });
+
   app.setGlobalPrefix('api/v1');
 
   const port = process.env.PORT || 5011;
   await app.listen(port, '0.0.0.0');
 
   logger.log(`🚀 Avito Parser Service running on http://localhost:${port}`);
+  logger.log(`🖥️  noVNC available at http://localhost:6080`);
 }
 
 bootstrap();

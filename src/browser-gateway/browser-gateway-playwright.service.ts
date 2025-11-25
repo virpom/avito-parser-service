@@ -1,85 +1,83 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Browser } from 'puppeteer';
-const puppeteerExtra = require('puppeteer-extra');
-const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-
-puppeteerExtra.use(StealthPlugin());
+import { chromium, Browser, BrowserContext, Page } from 'playwright';
 
 interface BrowserSession {
   accountId: number;
   browser: Browser;
-  wsEndpoint: string;
+  context: BrowserContext;
+  page: Page;
+  cdpUrl: string;
   createdAt: Date;
 }
 
 @Injectable()
-export class BrowserGatewayService {
-  private readonly logger = new Logger(BrowserGatewayService.name);
+export class BrowserGatewayPlaywrightService {
+  private readonly logger = new Logger(BrowserGatewayPlaywrightService.name);
   private sessions: Map<number, BrowserSession> = new Map();
 
   /**
    * Запустить браузер для ручной авторизации
    */
-  async startBrowser(accountId: number, proxyConfig?: any): Promise<{ wsEndpoint: string }> {
+  async startBrowser(accountId: number, proxyConfig?: any): Promise<{ cdpUrl: string }> {
     try {
       // Проверяем есть ли уже сессия
       if (this.sessions.has(accountId)) {
         const session = this.sessions.get(accountId)!;
         this.logger.log(`Reusing existing browser for account ${accountId}`);
-        return { wsEndpoint: session.wsEndpoint };
+        return { cdpUrl: session.cdpUrl };
       }
 
-      this.logger.log(`Starting browser for account ${accountId}`);
+      this.logger.log(`Starting Playwright browser for account ${accountId}`);
 
-      const args = [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-blink-features=AutomationControlled',
-      ];
+      const launchOptions: any = {
+        headless: false, // Показываем браузер
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+        ],
+      };
 
       // Добавляем прокси если есть
       if (proxyConfig) {
-        const proxyUrl = `${proxyConfig.protocol}://${proxyConfig.host}:${proxyConfig.port}`;
-        args.push(`--proxy-server=${proxyUrl}`);
-      }
-
-      const browser = await puppeteerExtra.launch({
-        headless: false, // Показываем браузер в Xvfb (DISPLAY=:99)
-        args,
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-      });
-
-      const wsEndpoint = browser.wsEndpoint();
-      
-      // Открываем страницу Avito
-      const page = await browser.newPage();
-      
-      // Если есть прокси с авторизацией
-      if (proxyConfig?.username && proxyConfig?.password) {
-        await page.authenticate({
+        launchOptions.proxy = {
+          server: `${proxyConfig.protocol}://${proxyConfig.host}:${proxyConfig.port}`,
           username: proxyConfig.username,
           password: proxyConfig.password,
-        });
+        };
       }
 
+      const browser = await chromium.launch(launchOptions);
+      const context = await browser.newContext({
+        viewport: { width: 1280, height: 720 },
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      });
+
+      const page = await context.newPage();
+      
+      // Открываем страницу Avito
       await page.goto('https://www.avito.ru/profile/login', {
-        waitUntil: 'networkidle2',
+        waitUntil: 'networkidle',
         timeout: 30000,
       });
+
+      // Получаем CDP URL
+      const cdpUrl = browser.wsEndpoint();
 
       // Сохраняем сессию
       const session: BrowserSession = {
         accountId,
         browser,
-        wsEndpoint,
+        context,
+        page,
+        cdpUrl,
         createdAt: new Date(),
       };
       this.sessions.set(accountId, session);
 
-      this.logger.log(`Browser started for account ${accountId}: ${wsEndpoint}`);
+      this.logger.log(`Playwright browser started for account ${accountId}: ${cdpUrl}`);
 
-      return { wsEndpoint };
+      return { cdpUrl };
     } catch (error: any) {
       this.logger.error(`Failed to start browser: ${error.message}`);
       throw error;
@@ -96,12 +94,7 @@ export class BrowserGatewayService {
         return null;
       }
 
-      const pages = await session.browser.pages();
-      if (pages.length === 0) {
-        return null;
-      }
-
-      const cookies = await pages[0].cookies();
+      const cookies = await session.context.cookies();
       return JSON.stringify(cookies);
     } catch (error: any) {
       this.logger.error(`Failed to get cookies: ${error.message}`);
@@ -119,12 +112,7 @@ export class BrowserGatewayService {
         return false;
       }
 
-      const pages = await session.browser.pages();
-      if (pages.length === 0) {
-        return false;
-      }
-
-      const url = pages[0].url();
+      const url = session.page.url();
       return !url.includes('/login');
     } catch (error: any) {
       return false;
