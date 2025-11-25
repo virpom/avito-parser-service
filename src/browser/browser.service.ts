@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import puppeteer, { Browser, Page } from 'puppeteer';
-import puppeteerExtra from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import { Browser, Page } from 'puppeteer';
+const puppeteerExtra = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 
 // Добавляем плагин для обхода детекции
 puppeteerExtra.use(StealthPlugin());
