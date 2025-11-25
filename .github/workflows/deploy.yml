@@ -1,6 +1,10 @@
 name: Build and Deploy Avito Parser Service
 
 on:
+  push:
+    branches:
+      - main
+      - master
   workflow_dispatch:
 
 jobs:
@@ -31,24 +35,4 @@ jobs:
         cache-from: type=registry,ref=jes11sy/avito-parser-service:latest
         cache-to: type=inline
 
-    - name: Set up kubectl
-      uses: azure/setup-kubectl@v3
-      with:
-        version: 'latest'
-
-    - name: Configure kubectl
-      run: |
-        mkdir -p $HOME/.kube
-        echo "${{ secrets.KUBECONFIG }}" | base64 -d > $HOME/.kube/config
-        chmod 600 $HOME/.kube/config
-
-    - name: Deploy to Kubernetes
-      run: |
-        kubectl rollout restart deployment/avito-parser-service -n backend
-        kubectl rollout status deployment/avito-parser-service -n backend --timeout=300s
-
-    - name: Verify deployment
-      run: |
-        kubectl get pods -n backend -l app=avito-parser-service
-        kubectl logs -n backend deployment/avito-parser-service --tail=50
 
