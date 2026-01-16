@@ -177,20 +177,23 @@
   "data": [
     {
       "id": "captcha_123",
-      "imageUrl": "data:image/png;base64,...",
-      "createdAt": "2025-11-25T12:00:00Z"
+      "accountId": 1,
+      "image": "base64_png",
+      "timestamp": "2025-11-25T12:00:00Z",
+      "resolved": false
     }
   ]
 }
 ```
 
-#### POST `/api/v1/captcha/:id/solve`
+#### POST `/api/v1/captcha/submit`
 Отправить решение капчи
 
 **Request:**
 ```json
 {
-  "solution": "abc123"
+  "captchaId": "captcha_123",
+  "answer": "abc123"
 }
 ```
 
